@@ -121,7 +121,8 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   console.error('[error]', err);
   if (res.headersSent) return next(err);
-  res.status(500).json({ error: '服务器内部错误' });
+  // 把真实报错暴露出来，方便线上排查（生产环境可考虑去掉 message 字段）
+  res.status(500).json({ error: '服务器内部错误', message: (err && err.message) || 'unknown', stack: (process.env.NODE_ENV !== 'production' ? err.stack : undefined) });
 });
 
 app.listen(PORT, () => {

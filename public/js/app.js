@@ -160,7 +160,9 @@ $('#q').addEventListener('keydown', (e) => {
    视图：名录广场
    ========================================================================== */
 function listSkeleton(n = 8) {
-  return `<div class="grid">${Array.from({ length: n }).map(() => `
+  // 返回「卡片」而非整块 .grid——直接塞进已存在的 #grid 内部，
+  // 避免把 #grid 节点本身覆盖掉（否则后续 $('#grid') 取不到，卡在加载中）
+  return Array.from({ length: n }).map(() => `
     <div class="skel">
       <div style="display:flex;gap:12px;margin-bottom:12px">
         <div class="b" style="width:50px;height:50px;border-radius:14px"></div>
@@ -175,7 +177,7 @@ function listSkeleton(n = 8) {
         <div class="b" style="height:20px;width:56px;border-radius:99px"></div>
         <div class="b" style="height:20px;width:70px;border-radius:99px"></div>
       </div>
-    </div>`).join('')}</div>`;
+    </div>`).join('');
 }
 
 function memberCard(p) {
@@ -213,8 +215,10 @@ async function loadList(append = false) {
     size: 24,
   };
   if (!append) {
-    const gridHost = $('#gridhost');
-    if (gridHost) gridHost.innerHTML = listSkeleton();
+    // 骨架必须塞进「已存在的 #grid」内部，不能替换 #gridhost 整体——
+    // 否则 #grid / #empty / #morehost 全被清掉，后续 $('#grid') 取不到，页面永远卡在加载中
+    const existingGrid = $('#grid');
+    if (existingGrid) existingGrid.innerHTML = listSkeleton();
     else app.innerHTML = listShell();
   }
 
@@ -463,7 +467,7 @@ function relTime(ts) {
 async function viewProfile(slug) {
   setNav('profile');
   $('#searchbar').style.display = 'none';
-  $('#app').innerHTML = listSkeleton(2);
+  $('#app').innerHTML = '<div class="grid">' + listSkeleton(2) + '</div>';
   let data;
   try { data = await API.profile(slug); }
   catch (e) {
@@ -564,7 +568,7 @@ function openCreateCircle() {
 async function viewCircle(slug) {
   setNav('circles');
   $('#searchbar').style.display = 'none';
-  $('#app').innerHTML = listSkeleton(2);
+  $('#app').innerHTML = '<div class="grid">' + listSkeleton(2) + '</div>';
 
   let data;
   try { data = await API.circle(slug); }
