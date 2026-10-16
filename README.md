@@ -101,12 +101,53 @@ quannei/
 └─ .gitignore          # data/ 本地数据库不入版本库
 ```
 
-## 生产部署注意
+## 生产部署
+
+### ⚠️ 为什么不能用 Vercel（Serverless）
+
+本项目是**常驻型 Web 服务 + 磁盘文件数据库（`node:sqlite` → `data/quannei.db`）**，两者都要求进程一直存活、文件系统可写。Vercel 是 serverless：
+
+- 函数文件系统只读/临时，无法写入 SQLite 文件；
+- `node:sqlite` 实验内置模块在 Vercel 运行时不保证可加载；
+- 无常驻进程，`express-session` 的内存会话会在每次冷启动后丢失。
+
+因此部署到 Vercel 会报 `500 FUNCTION_INVOCATION_FAILED`（运行时崩溃）。**请用持久型平台**：Render、Railway、Fly.io，或任意有 Node 22 的 VPS。
+
+### 方案 A：Render（推荐，有免费档）
+
+仓库已含 `Dockerfile` + `render.yaml`，最省事：
+
+1. 登录 <https://dashboard.render.com>，进该仓库的项目。
+2. 新建 **Web Service** → 选本仓库 `wechatbook`。
+3. Runtime 选 **Docker**（用仓库里的 `Dockerfile`），或 Build `npm install`、Start `npm start`。
+4. 设环境变量：
+   - `SESSION_SECRET` = 一串随机长字符串（必改）
+   - `PORT` 保持 3000（Render 会自动注入实际端口，代码已读 `process.env.PORT`）
+5. 建一块 **Persistent Disk**（1GB 起），挂载到 `/data`，并设 `DATA_DIR=/data`。这样数据库不会随重启清空。
+   - 不挂盘也能跑（重启会重新灌种子数据，适合纯演示）。
+6. 部署完成后访问 Render 给的 `https://xxx.onrender.com`。
+
+> 用 `render.yaml` 的话，本地执行 `render run wechatbook`（已装 Render CLI 并 `render login`）即可按蓝图一键建服务。
+
+### 方案 B：Railway / Fly.io / VPS
+
+任意支持 Node 22 的持久环境：
+
+```bash
+npm install
+DATA_DIR=/var/lib/quannei SESSION_SECRET="<你的随机串>" npm start
+```
+
+- 务必配可写、持久化的 `DATA_DIR`（放 SQLite 文件）。
+- 用 `SESSION_SECRET` 强随机值。
+- 前面套 HTTPS（联系方式、注册依赖安全上下文）。
+
+### 通用注意事项
 
 1. **改 `SESSION_SECRET`** 为强随机值。
-2. 用 `DATA_DIR` 指定持久化目录，避免数据库被部署覆盖。
-3. 前面套 Nginx / Caddy 上 HTTPS（联系方式、注册表单依赖安全上下文）。
-4. `node:sqlite` 目前是实验特性，升级 Node 前建议回归测试；如需更稳，可换回 `better-sqlite3`（接口几乎一致，需编译环境）。
+2. 用 `DATA_DIR` 指向持久化目录，避免数据库被部署/重启覆盖。
+3. 上 HTTPS。
+4. `node:sqlite` 目前是实验特性，升级 Node 大版本前建议回归测试；追求更稳可换回 `better-sqlite3`（接口几乎一致，需编译环境）。
 
 ## 设计语言
 

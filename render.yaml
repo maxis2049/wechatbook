@@ -1,0 +1,19 @@
+# Render 部署蓝图：用 `render run` 或在 Render 面板选择该蓝图即可一键部署
+# 说明：这是一个「常驻型 Web 服务」，SQLite 数据库落在持久盘 /data，
+# 依赖 Node 22（内置 node:sqlite）。不要用 serverless（如 Vercel）托管。
+
+services:
+  - type: web
+    name: wechatbook
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: SESSION_SECRET
+        generateValue: true   # 每次部署生成随机会话密钥
+      - key: DATA_DIR
+        value: /data
+    persistentDisk:
+      name: quannei-data
+      mountPath: /data
