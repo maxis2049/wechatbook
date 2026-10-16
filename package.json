@@ -1,0 +1,31 @@
+{
+  "name": "quannei",
+  "version": "1.0.0",
+  "description": "圈内 · 在圈子里被看见 — 面向校友群/俱乐部的线上通讯录与个人主页平台",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "reset-db": "node src/db/reset.js",
+    "test": "node test.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "keywords": [
+    "directory",
+    "address-book",
+    "alumni",
+    "club",
+    "profile"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.1",
+    "express-session": "^1.18.1",
+    "sanitize-html": "^2.13.1"
+  }
+}
