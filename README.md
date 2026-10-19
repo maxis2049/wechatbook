@@ -147,6 +147,65 @@ DATA_DIR=/var/lib/quannei SESSION_SECRET="<你的随机串>" npm start
 1. **改 `SESSION_SECRET`** 为强随机值。
 2. 用 `DATA_DIR` 指向持久化目录，避免数据库被部署/重启覆盖。
 3. 上 HTTPS。
+
+## 数据持久化与备份恢复（重要）
+
+### 为什么重新部署会丢数据
+
+`DATA_DIR`（默认 `./data`，线上是 `/data`）里存着 `quannei.db`。
+服务启动时 `seed()` 会检查：`users` 表为空才灌入 12 条演示数据。
+
+- **挂了持久盘** → `quannei.db` 保留在盘上 → 重启/重部署后数据都在，`seed` 发现表非空自动跳过。
+- **没挂持久盘**（Render 默认行为）→ 每次重新部署/重启，容器临时盘被清空 → 数据库变全新 → `seed` 重新灌 12 条 → **你注册的真实账号全部丢失**。
+
+> 这是「丢数据」的唯一原因。挂上持久盘即可根治。
+
+### 怎么用 Render 面板挂持久盘
+
+服务页 → **Advanced** → **Disks** → **Attach a Disk**（没有就先 Create，1GB、区域与服务一致）。
+把 `mountPath` 设为 **`/data`**，保存后 Render 自动重新部署。
+
+### 数据健康检查：`GET /api/stats`
+
+```
+curl https://你的域名/api/stats
+```
+返回：
+```json
+{
+  "dbFileExists": true, "dbFileSizeKB": 116,
+  "totalUsers": 12, "realUsers": 0, "demoUsers": 12,
+  "seededFreshly": true,
+  "hint": "当前只有演示数据，真实注册账号可能已随重启丢失（未挂持久盘）。"
+}
+```
+- `realUsers` = 非 `@demo.com` 的真实用户数。**0 且 `seededFreshly=true` 就是数据丢了。**
+- 这个端点是公开的（只读、不含任何密码/联系方式），用于快速诊断。
+
+### 备份 / 恢复安全网（`/api/backup`）
+
+在 Render 设环境变量 `ADMIN_KEY`（任意随机串，`render.yaml` 里已配 `generateValue`），即可随时导出、一键恢复。
+
+**部署前导出（存一份真实用户）：**
+```bash
+curl "https://你的域名/api/backup?adminKey=你的ADMIN_KEY" -o backup.json
+```
+
+**部署/重启后导入恢复：**
+```bash
+curl -X POST "https://你的域名/api/backup" \
+  -H 'Content-Type: application/json' \
+  -d @<(jq -n --argjson d "$(cat backup.json)" '{adminKey:"你的ADMIN_KEY", data:$d}')
+```
+恢复按 `email` 幂等 upsert，会带回用户主页小节、标签、圈子成员关系。
+
+> 建议流程：**每次重新部署前**先 `GET /api/backup` 存一份 `backup.json`，部署完再 `POST` 恢复一次。挂持久盘后这一步可省。
+
+### 恢复已丢失的数据
+
+如果没备份、数据已经丢了，只能**重新注册**——但 `seed` 每次都给演示账号固定 slug（`zhangmingyuan` 等），不会和你的真实账号冲突，重新填即可。挂好持久盘后新数据就不会再丢了。
+
+
 4. `node:sqlite` 目前是实验特性，升级 Node 大版本前建议回归测试；追求更稳可换回 `better-sqlite3`（接口几乎一致，需编译环境）。
 
 ## 设计语言

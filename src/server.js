@@ -9,7 +9,7 @@ const express = require('express');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
 
-const { db, migrate } = require('./db');
+const { db, migrate, DB_FILE, DATA_DIR } = require('./db');
 const { seed } = require('./db/seed');
 const { avatarColor, initial } = require('./lib');
 
@@ -40,6 +40,7 @@ const me = require('./routes/me');
 const directory = require('./routes/directory');
 const circles = require('./routes/circles');
 const dictionary = require('./routes/dictionary');
+const backup = require('./routes/backup');
 
 app.use('/api/auth', auth.router);
 app.use('/api/me', me.router);          // 放前面，避免 /api/profile/:slug 冲突
@@ -47,8 +48,33 @@ app.use('/api/profile', profile.router);
 app.use('/api/directory', directory.router);
 app.use('/api/circles', circles.router);
 app.use('/api/dictionary', dictionary.router);
+app.use('/api/backup', backup.router);
 
 app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
+
+/** 数据健康检查：帮判断"数据有没有随重启丢失"
+ *  - dbFileExists / dbFileSize：库文件还在不在、多大
+ *  - realUsers：非 @demo.com 的真实注册用户数（0 = 真实数据已丢，回到演示态）
+ *  - dataDir：数据库落盘目录（是否挂在持久盘 /data）
+ */
+app.get('/api/stats', (req, res) => {
+  let dbFileExists = false, dbFileSize = 0;
+  try { if (fs.existsSync(DB_FILE)) { dbFileExists = true; dbFileSize = fs.statSync(DB_FILE).size; } } catch (_) {}
+  const totalUsers = db.prepare('SELECT COUNT(*) c FROM users').get().c;
+  const realUsers = db.prepare("SELECT COUNT(*) c FROM users WHERE email NOT LIKE '%@demo.com'").get().c;
+  const circles = db.prepare('SELECT COUNT(*) c FROM circles').get().c;
+  res.json({
+    dbFileExists,
+    dbFileSizeKB: Math.round(dbFileSize / 1024),
+    dataDir: DATA_DIR,
+    totalUsers,
+    realUsers,
+    demoUsers: totalUsers - realUsers,
+    circles,
+    seededFreshly: !fs.existsSync(path.join(DATA_DIR, '.seeded-persistent')) && totalUsers === 12 && realUsers === 0,
+    hint: realUsers === 0 ? '当前只有演示数据，真实注册账号可能已随重启丢失（未挂持久盘）。' : `已保留 ${realUsers} 个真实用户。`,
+  });
+});
 
 /* ---------- 静态资源 ---------- */
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');

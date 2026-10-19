@@ -1,6 +1,13 @@
 # Render 部署蓝图：用 `render run` 或在 Render 面板选择该蓝图即可一键部署
 # 说明：这是一个「常驻型 Web 服务」，SQLite 数据库落在持久盘 /data，
-# 依赖 Node 22（内置 node:sqlite）。不要用 serverless（如 Vercel）托管。
+#       依赖 Node 22（内置 node:sqlite）。不要用 serverless（如 Vercel）托管。
+#
+# ⚠️ 关键：务必挂持久盘到 /data。否则每次重新部署/重启，容器临时盘被清空，
+#    quannei.db 消失，真实注册账号全部丢失（seed 会重新灌 12 条演示数据）。
+#    手动在面板建服务的人，一定要在 Advanced → Disks 里 Attach 一块 1GB 盘挂到 /data。
+#
+# 数据安全网：设了 ADMIN_KEY 后，重新部署前可 GET /api/backup?adminKey=XXX 导出，
+#   部署后 POST /api/backup { adminKey, data } 一键恢复真实用户。
 
 services:
   - type: web
@@ -14,6 +21,9 @@ services:
         generateValue: true   # 每次部署生成随机会话密钥
       - key: DATA_DIR
         value: /data
+      - key: ADMIN_KEY
+        generateValue: true   # 数据备份/恢复接口密钥（部署前导出、部署后导入用）
     persistentDisk:
       name: quannei-data
       mountPath: /data
+      diskSizeGb: 1
